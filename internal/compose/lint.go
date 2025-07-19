@@ -1,6 +1,7 @@
 package compose
 
 import (
+	"bytes"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -41,4 +42,24 @@ func Lint(data []byte) {
 		printer.CheckError(service.Deploy != nil && service.Deploy["resources"] != nil,
 			"[%s] Missing resource limits under 'deploy.resources'.", name)
 	}
+}
+
+func Format(data []byte) ([]byte, error) {
+	var compose interface{}
+	err := yaml.Unmarshal(data, &compose)
+	if err != nil {
+		return nil, err
+	}
+
+	var formatted bytes.Buffer
+	encoder := yaml.NewEncoder(&formatted)
+	encoder.SetIndent(2)
+
+	err = encoder.Encode(compose)
+	if err != nil {
+		return nil, err
+	}
+	encoder.Close()
+
+	return formatted.Bytes(), nil
 }

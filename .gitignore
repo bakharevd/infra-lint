@@ -1,3 +1,32 @@
-bin/
+# Бинарные файлы
+/infra-lint
+/bin/
+/dist/
+
+# Go файлы
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Тестовые файлы
+*.test
+*.out
+
+# Временные файлы
+*.swp
+*.swo
+*~
+.DS_Store
+
+# IDE
 .idea/
 .vscode/
+*.iml
+
+# Зависимости
+vendor/
+
+# Кэш Go
+go.sum.backup

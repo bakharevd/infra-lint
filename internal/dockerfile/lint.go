@@ -41,3 +41,39 @@ func Lint(data []byte) {
 	printer.CheckWarn(hasHealthCheck, "Missing HEALTHCHECK instruction")
 	printer.CheckError(hasUser, "No USER specified. Container runs as root")
 }
+
+func Format(data []byte) ([]byte, error) {
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	var formatted bytes.Buffer
+
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		if strings.TrimSpace(line) == "" {
+			formatted.WriteString("\n")
+			continue
+		}
+
+		trimmed := strings.TrimSpace(line)
+
+		for _, instruction := range []string{"FROM", "RUN", "CMD", "LABEL", "EXPOSE", "ENV", "ADD", "COPY", "ENTRYPOINT", "VOLUME", "USER", "WORKDIR", "ARG", "ONBUILD", "STOPSIGNAL", "HEALTHCHECK", "SHELL"} {
+			if strings.HasPrefix(strings.ToUpper(trimmed), instruction+" ") || strings.ToUpper(trimmed) == instruction {
+				trimmed = instruction + trimmed[len(instruction):]
+				break
+			}
+		}
+
+		parts := strings.SplitN(trimmed, " ", 2)
+		if len(parts) == 2 {
+			formatted.WriteString(parts[0] + " " + strings.TrimSpace(parts[1]) + "\n")
+		} else {
+			formatted.WriteString(trimmed + "\n")
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return formatted.Bytes(), nil
+}

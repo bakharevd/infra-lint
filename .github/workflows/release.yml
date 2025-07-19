@@ -1,0 +1,75 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Get version
+        id: get_version
+        run: |
+          if [[ $GITHUB_REF == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/}
+          else
+            VERSION="latest"
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Build binaries
+        run: |
+          mkdir -p dist
+          
+          GOOS=linux GOARCH=amd64 go build -o dist/infra-lint-linux-amd64 ./cmd
+          GOOS=linux GOARCH=arm64 go build -o dist/infra-lint-linux-arm64 ./cmd
+          GOOS=darwin GOARCH=amd64 go build -o dist/infra-lint-darwin-amd64 ./cmd
+          GOOS=darwin GOARCH=arm64 go build -o dist/infra-lint-darwin-arm64 ./cmd
+          GOOS=windows GOARCH=amd64 go build -o dist/infra-lint-windows-amd64.exe ./cmd
+          
+          cd dist
+          for file in infra-lint-*; do
+            if [[ "$file" == *.exe ]]; then
+              zip "${file%.exe}.zip" "$file"
+            else
+              tar -czf "${file}.tar.gz" "$file"
+            fi
+          done
+          cd ..
+
+      - name: Create Release (for tags)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.tar.gz,dist/*.zip
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+
+      - name: Upload to latest release (for main branch)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          gh release delete latest --yes || true
+          
+          gh release create latest \
+            --title "Latest build from main" \
+            --notes "Automatic build from the latest main branch" \
+            --latest \
+            dist/*.tar.gz dist/*.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 

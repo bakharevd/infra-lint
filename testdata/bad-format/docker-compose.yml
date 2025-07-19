@@ -1,0 +1,17 @@
+services:
+  app:
+    depends_on:
+      - db
+    deploy:
+      replicas: 2
+    image: myapp:latest
+  db:
+    image: postgres:13
+  web:
+    environment:
+      - NGINX_HOST=foobar.com
+    image: nginx:latest
+    ports:
+      - 80:80
+    restart: always
+version: "3.8"

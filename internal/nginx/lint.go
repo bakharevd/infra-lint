@@ -41,3 +41,43 @@ func Lint(data []byte) {
 	printer.CheckWarn(foundSecurityHeaders, "nginx.conf: Missing security headers like 'X-Content-Type-Options'.")
 	printer.CheckWarn(foundGzip, "nginx.conf: Gzip not enabled.")
 }
+
+func Format(data []byte) ([]byte, error) {
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	var formatted bytes.Buffer
+	indentLevel := 0
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		trimmed := strings.TrimSpace(line)
+
+		if trimmed == "" {
+			formatted.WriteString("\n")
+			continue
+		}
+
+		if strings.HasPrefix(trimmed, "}") {
+			indentLevel--
+			if indentLevel < 0 {
+				indentLevel = 0
+			}
+		}
+
+		indent := strings.Repeat("    ", indentLevel)
+		formatted.WriteString(indent + trimmed + "\n")
+
+		if strings.HasSuffix(trimmed, "{") {
+			indentLevel++
+		}
+
+		if !strings.HasSuffix(trimmed, "{") && !strings.HasSuffix(trimmed, "}") && !strings.HasSuffix(trimmed, ";") && !strings.HasPrefix(trimmed, "#") {
+			//
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return formatted.Bytes(), nil
+}

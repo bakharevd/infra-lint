@@ -38,3 +38,39 @@ func Lint(data []byte) {
 	printer.CheckError(hasPostBlock, "Jenkinsfile: Missing post block to handle failures/cleanup.")
 	printer.CheckWarn(stageCount <= 10, "Jenkinsfile: Too many stages (>10). Consider modularizing.")
 }
+
+func Format(data []byte) ([]byte, error) {
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+	var formatted bytes.Buffer
+	indentLevel := 0
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		trimmed := strings.TrimSpace(line)
+
+		if trimmed == "" {
+			formatted.WriteString("\n")
+			continue
+		}
+
+		if strings.HasPrefix(trimmed, "}") {
+			indentLevel--
+			if indentLevel < 0 {
+				indentLevel = 0
+			}
+		}
+
+		indent := strings.Repeat("    ", indentLevel)
+		formatted.WriteString(indent + trimmed + "\n")
+
+		if strings.HasSuffix(trimmed, "{") {
+			indentLevel++
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return formatted.Bytes(), nil
+}

@@ -49,6 +49,7 @@ func main() {
 	excludeTypes := flag.String("exclude-types", "", "Comma-separated list of linters to exclude")
 	listTypes := flag.Bool("list-types", false, "List all available linter types")
 	noColor := flag.Bool("no-color", false, "Disable color output")
+	formatter := flag.Bool("formatter", false, "Format files instead of linting")
 	flag.Parse()
 
 	if *listTypes {
@@ -90,19 +91,32 @@ func main() {
 		}
 
 		log.Printf("Scanning repository...")
-		if err := scanDirAndLint(tmpDir); err != nil {
-			log.Fatalf("Failed to scan repository: %v", err)
+		if *formatter {
+			if err := scanDirAndFormat(tmpDir); err != nil {
+				log.Fatalf("Failed to scan repository: %v", err)
+			}
+		} else {
+			if err := scanDirAndLint(tmpDir); err != nil {
+				log.Fatalf("Failed to scan repository: %v", err)
+			}
+			printer.PrintStats()
 		}
-		printer.PrintStats()
 		return
 	}
 
 	if *dirPath != "" {
-		err := scanDirAndLint(*dirPath)
-		if err != nil {
-			log.Fatalf("Failed to scan directory: %v", err)
+		if *formatter {
+			err := scanDirAndFormat(*dirPath)
+			if err != nil {
+				log.Fatalf("Failed to scan directory: %v", err)
+			}
+		} else {
+			err := scanDirAndLint(*dirPath)
+			if err != nil {
+				log.Fatalf("Failed to scan directory: %v", err)
+			}
+			printer.PrintStats()
 		}
-		printer.PrintStats()
 		return
 	}
 
@@ -110,8 +124,15 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to read file: %v", err)
 	}
-	lintFile(*filePath, data)
-	printer.PrintStats()
+
+	if *formatter {
+		if err := formatFile(*filePath, data); err != nil {
+			log.Fatalf("Failed to format file: %v", err)
+		}
+	} else {
+		lintFile(*filePath, data)
+		printer.PrintStats()
+	}
 }
 
 func shouldRunLinter(linterType string) bool {
@@ -154,6 +175,84 @@ func lintFile(filePath string, data []byte) {
 
 func scanDirAndLint(dir string) error {
 	return walkDir(dir)
+}
+
+func formatFile(filePath string, data []byte) error {
+	var formatted []byte
+	var err error
+
+	switch {
+	case dockerfile.IsDockerfile(filePath):
+		log.Printf("Formatting Dockerfile: %s", filePath)
+		formatted, err = dockerfile.Format(data)
+	case compose.IsDockerCompose(filePath):
+		log.Printf("Formatting Docker Compose: %s", filePath)
+		formatted, err = compose.Format(data)
+	case jenkinsfile.IsJenkinsfile(filePath):
+		log.Printf("Formatting Jenkinsfile: %s", filePath)
+		formatted, err = jenkinsfile.Format(data)
+	case nginx.IsNginxConfig(filePath):
+		log.Printf("Formatting Nginx config: %s", filePath)
+		formatted, err = nginx.Format(data)
+	default:
+		log.Printf("Unknown file type: %s", filePath)
+		return nil
+	}
+
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(filePath, formatted, 0644)
+	if err != nil {
+		return err
+	}
+
+	printer.OK("Formatted: %s", filePath)
+	return nil
+}
+
+func scanDirAndFormat(dir string) error {
+	return walkDirAndFormat(dir)
+}
+
+func walkDirAndFormat(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		path := dir + string(os.PathSeparator) + entry.Name()
+		if entry.IsDir() {
+			if err := walkDirAndFormat(path); err != nil {
+				return err
+			}
+			continue
+		}
+
+		shouldProcess := false
+		if dockerfile.IsDockerfile(path) && shouldRunLinter("docker") {
+			shouldProcess = true
+		} else if compose.IsDockerCompose(path) && shouldRunLinter("compose") {
+			shouldProcess = true
+		} else if jenkinsfile.IsJenkinsfile(path) && shouldRunLinter("jenkins") {
+			shouldProcess = true
+		} else if nginx.IsNginxConfig(path) && shouldRunLinter("nginx") {
+			shouldProcess = true
+		}
+
+		if shouldProcess {
+			data, err := os.ReadFile(path)
+			if err != nil {
+				log.Printf("Failed to read file %s: %v", path, err)
+				continue
+			}
+			if err := formatFile(path, data); err != nil {
+				log.Printf("Failed to format file %s: %v", path, err)
+			}
+		}
+	}
+	return nil
 }
 
 func walkDir(dir string) error {
