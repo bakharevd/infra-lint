@@ -1,3 +1,5 @@
+dev
+
 # infra-lint
 
 Линтер для инфраструктурных файлов (Dockerfile, docker-compose.yml, nginx.conf, Jenkinsfile).
@@ -19,16 +21,6 @@ sudo mv infra-lint-darwin-arm64 /usr/local/bin/infra-lint
 
 # Windows
 # Скачайте infra-lint-windows-amd64.zip и распакуйте в PATH
-```
-
-### Через Docker
-
-```bash
-# Использование из GitHub Container Registry
-docker run --rm -v $(pwd):/app ghcr.io/bakharevd/infra-lint --dir /app
-
-# Или создайте алиас для удобства
-alias infra-lint='docker run --rm -v $(pwd):/app ghcr.io/bakharevd/infra-lint'
 ```
 
 ### Из исходников
